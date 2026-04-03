@@ -119,6 +119,38 @@ app.get("/pedidos", async (req, res) => {
 }
 });
 
+app.get("/criar-tabela", async (req, res) => {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS produtos (
+        id SERIAL PRIMARY KEY,
+        nome TEXT,
+        preco NUMERIC,
+        imagem TEXT
+      );
+    `);
+
+    res.send("Tabela criada!");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Erro ao criar tabela");
+  }
+});
+
+app.get("/add-produto", async (req, res) => {
+  try {
+    await pool.query(`
+      INSERT INTO produtos (nome, preco, imagem)
+      VALUES ('X-Burguer', 15, 'https://via.placeholder.com/150')
+    `);
+
+    res.send("Produto adicionado!");
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Erro ao adicionar produto");
+  }
+});
+
 app.post("/loja-status", async (req, res) => {
 
   const { aberto } = req.body
