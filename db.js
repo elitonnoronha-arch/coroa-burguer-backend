@@ -16,7 +16,8 @@ module.exports = pool;*/}
 const { Pool } = require("pg");
 
 // Usa DATABASE_URL da Render ou fallback local
-const connectionString = process.env.DATABASE_URL || "postgresql://postgres:123456@localhost:5432/postgres"; //esse banco "coroa_burguer_db" é do Render!, do pc é "coroa_burguer",
+const connectionString = process.env.DATABASE_URL || 
+"postgresql://postgres:123456@localhost:5432/postgres"; //esse banco "coroa_burguer_db" é do Render!, do pc é "coroa_burguer",
 
 const pool = new Pool({
   connectionString,
