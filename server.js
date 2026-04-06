@@ -13,6 +13,8 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 
+/*let visitantes = {}; */ 
+
 app.use(cors());
 app.use(express.json());
 
@@ -51,6 +53,54 @@ app.post("/upload", upload.single("imagem"), (req, res) => {
     console.error(err);
     res.status(500).json({ erro: "Erro no upload" });
   }
+});
+
+app.post("/visita/inicio", (req, res) => {
+  const id = Date.now().toString();
+
+  visitantes[id] = {
+    inicio: new Date(),
+    ativo: true
+  };
+
+  res.json({ id });
+});
+
+//CRIA ROTA: visitante entrou
+
+app.post("/visita/inicio", (req, res) => {
+  const id = Date.now().toString();
+
+  visitantes[id] = {
+    inicio: new Date(),
+    ativo: true
+  };
+
+  res.json({ id });
+});
+
+//CRIA ROTA: visitante saiu
+
+app.post("/visita/fim", (req, res) => {
+  const { id } = req.body;
+
+  if (visitantes[id]) {
+    visitantes[id].fim = new Date();
+    visitantes[id].ativo = false;
+
+    const tempo =
+      (visitantes[id].fim - visitantes[id].inicio) / 1000;
+
+    visitantes[id].tempo = tempo;
+  }
+
+  res.json({ ok: true });
+});
+
+//ROTA PRA VER DADOS (ADMIN)
+
+app.get("/visitas", (req, res) => {
+  res.json(visitantes);
 });
 
 
@@ -383,10 +433,55 @@ io.on("connection", (socket) => {
   console.log("🟢 Cliente conectado:", socket.id);
 });
 
+
+
+
 // =============================
 // SERVER
 // =============================
 const PORT = process.env.PORT || 3001;
+
+// =============================
+// VISITANTES (ANALYTICS)
+// =============================
+
+let visitantes = {};
+
+// visitante entrou
+app.post("/visita/inicio", (req, res) => {
+  const id = Date.now().toString();
+
+  visitantes[id] = {
+    inicio: new Date(),
+    ativo: true
+  };
+
+  console.log("🟢 Visitante entrou:", id);
+
+  res.json({ id });
+});
+
+// visitante saiu
+app.post("/visita/fim", (req, res) => {
+  const { id } = req.body;
+
+  if (visitantes[id]) {
+    visitantes[id].fim = new Date();
+    visitantes[id].ativo = false;
+
+    const tempo = (visitantes[id].fim - visitantes[id].inicio) / 1000;
+    visitantes[id].tempo = tempo;
+
+    console.log("🔴 Visitante saiu:", id, "Tempo:", tempo);
+  }
+
+  res.json({ ok: true });
+});
+
+// listar visitas
+app.get("/visitas", (req, res) => {
+  res.json(visitantes);
+});
 
 server.listen(PORT, () => {
   console.log(`🚀 Servidor rodando na porta ${PORT}`);
