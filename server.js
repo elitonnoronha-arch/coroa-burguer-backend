@@ -47,11 +47,17 @@ setInterval(() => {
   const agora = Date.now()
 
   Object.values(visitas).forEach((v) => {
+
+    // 🔴 se passou muito tempo sem ping → offline
     if (agora - v.ultimoPing > 10000) {
       v.ativo = false
     }
 
-    v.tempo += 1
+    // ✅ só conta tempo se estiver online
+    if (v.ativo) {
+      v.tempo += 1
+    }
+
   })
 }, 1000)
 
