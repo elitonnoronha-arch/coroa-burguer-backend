@@ -13,10 +13,47 @@ const io = new Server(server, {
   cors: { origin: "*" }
 });
 
+// =============================
+// CONTROLE DE VISITAS
+// =============================
+
+
 /*let visitantes = {}; */ 
 
 app.use(cors());
 app.use(express.json());
+
+
+const visitas = {}
+
+app.post("/visitas/ping", (req, res) => {
+  const id = req.ip || Math.random().toString()
+
+  if (!visitas[id]) {
+    visitas[id] = {
+      inicio: Date.now(),
+      tempo: 0,
+      ativo: true
+    }
+  }
+
+  visitas[id].ultimoPing = Date.now()
+  visitas[id].ativo = true
+
+  res.sendStatus(200)
+})
+
+setInterval(() => {
+  const agora = Date.now()
+
+  Object.values(visitas).forEach((v) => {
+    if (agora - v.ultimoPing > 10000) {
+      v.ativo = false
+    }
+
+    v.tempo += 1
+  })
+}, 1000)
 
 // =============================
 // UPLOADS
@@ -66,6 +103,22 @@ app.post("/visita/inicio", (req, res) => {
   res.json({ id });
 });
 
+app.get("/visitas", (req, res) => {
+  const agora = Date.now();
+
+  const dados = Object.fromEntries(
+    Object.entries(visitas).map(([id, v]) => [
+      id,
+      {
+        ativo: v.ativo,
+        tempo: (agora - v.inicio) / 1000
+      }
+    ])
+  );
+
+  res.json(dados);
+});
+
 //CRIA ROTA: visitante entrou
 
 app.post("/visita/inicio", (req, res) => {
@@ -100,7 +153,20 @@ app.post("/visita/fim", (req, res) => {
 //ROTA PRA VER DADOS (ADMIN)
 
 app.get("/visitas", (req, res) => {
-  res.json(visitantes);
+  const agora = Date.now();
+
+  const visitasComTempo = {};
+
+  for (const id in visitas) {
+    const visita = visitas[id];
+
+    visitasComTempo[id] = {
+      ...visita,
+      tempo: (agora - visita.inicio) / 1000 // tempo em segundos
+    };
+  }
+
+  res.json(visitasComTempo);
 });
 
 
@@ -429,8 +495,21 @@ app.delete("/pedidos/:id", async (req, res) => {
 // =============================
 // SOCKET
 // =============================
-io.on("connection", (socket) => {
+io.on("connection", socket => {
   console.log("🟢 Cliente conectado:", socket.id);
+
+  // Quando entra
+  visitas[socket.id] = {
+    inicio: Date.now(),
+    ativo: true
+  };
+
+  // Quando sai
+  socket.on("disconnect", () => {
+    if (visitas[socket.id]) {
+      visitas[socket.id].ativo = false;
+    }
+  });
 });
 
 
