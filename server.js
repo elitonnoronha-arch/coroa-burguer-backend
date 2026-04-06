@@ -53,10 +53,53 @@ app.post("/upload", upload.single("imagem"), (req, res) => {
   }
 });
 
+
+// =============================
+// STATUS DA LOJA (SEGURO)
+// =============================
+app.get("/loja-status", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT loja_aberta FROM configuracoes LIMIT 1"
+    );
+
+    // Se não tiver nada no banco
+    if (result.rows.length === 0) {
+      return res.json({ loja_aberta: true });
+    }
+
+    res.json(result.rows[0]);
+
+  } catch (err) {
+    console.error("Erro loja-status:", err);
+
+    // NÃO quebra o sistema
+    res.json({ loja_aberta: true });
+  }
+});
+
+app.post("/loja-status", async (req, res) => {
+  try {
+    const { aberto } = req.body;
+
+    await pool.query(
+      "UPDATE configuracoes SET loja_aberta = $1",
+      [aberto]
+    );
+
+    res.json({ ok: true });
+
+  } catch (err) {
+    console.error("Erro ao atualizar loja:", err);
+    res.status(500).json({ erro: "Erro ao atualizar status" });
+  }
+});
+
 // =============================
 // LOJA
 // =============================
-app.get("/loja-status", async (req, res) => {
+
+/* app.get("/loja-status", async (req, res) => {
   try {
     const result = await pool.query(
       "SELECT loja_aberta FROM configuracoes LIMIT 1"
@@ -67,7 +110,7 @@ app.get("/loja-status", async (req, res) => {
     console.error(err);
     res.status(500).json({ erro: "Erro ao buscar status da loja" });
   }
-});
+}); */
 
 app.post("/loja-status", async (req, res) => {
   try {
@@ -88,7 +131,7 @@ app.post("/loja-status", async (req, res) => {
 // =============================
 // PRODUTOS
 // =============================
-app.get("/produtos", async (req, res) => {
+/* app.get("/produtos", async (req, res) => {
   try {
     const result = await pool.query(
       "SELECT * FROM produtos ORDER BY ordem ASC NULLS LAST, id ASC"
@@ -98,6 +141,19 @@ app.get("/produtos", async (req, res) => {
   } catch (err) {
     console.error("Erro ao buscar produtos:", err);
     res.status(500).json({ erro: "Erro ao buscar produtos" });
+  }
+}); */
+
+app.get("/produtos", async (req, res) => {
+  try {
+    const result = await pool.query(
+      "SELECT * FROM produtos ORDER BY ordem ASC NULLS LAST, id ASC"
+    );
+
+    res.json(result.rows || []);
+  } catch (err) {
+    console.error("ERRO /produtos:", err);
+    res.status(500).json({ erro: err.message });
   }
 });
 
