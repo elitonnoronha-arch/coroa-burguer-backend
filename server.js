@@ -61,6 +61,33 @@ setInterval(() => {
   })
 }, 1000)
 
+const historico = {}
+
+setInterval(() => {
+
+  const hoje = new Date().toISOString().slice(0, 10)
+
+  if (!historico[hoje]) {
+    historico[hoje] = {
+      visitantes: 0,
+      tempoTotal: 0
+    }
+  }
+
+  const visitasHoje = Object.values(visitas)
+
+  // 👥 total visitantes
+  historico[hoje].visitantes = visitasHoje.length
+
+  // ⏱ soma tempo de todos
+  historico[hoje].tempoTotal = visitasHoje.reduce((acc, v) => {
+    return acc + (v.tempo || 0)
+  }, 0)
+
+}, 60000) // a cada 1 minuto
+
+
+
 // =============================
 // UPLOADS
 // =============================
@@ -174,6 +201,10 @@ app.get("/visitas", (req, res) => {
 
   res.json(visitasComTempo);
 });
+
+app.get("/historico", (req, res) => {
+  res.json(historico)
+})
 
 
 // =============================
