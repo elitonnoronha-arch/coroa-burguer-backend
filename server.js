@@ -136,69 +136,68 @@ app.post("/visita/inicio", (req, res) => {
   res.json({ id });
 });
 
+
+
 app.get("/dashboard", async (req, res) => {
+  try {
 
-  // 🔥 PEDIDOS
-  const pedidos = await pool.query(`
-    SELECT total, criado_em
-    FROM pedidos
-  `)
+    const pedidos = await pool.query(`
+      SELECT total, criado_em
+      FROM pedidos
+    `)
 
-  // 🔥 VISITAS
-  const visitas = await pool.query(`
-    SELECT tempo_final, inicio
-    FROM visitas
-  `)
+    // 🔥 SEM VISITAS (por enquanto)
+    const visitas = { rows: [] }
 
-  const hoje = new Date()
-  const inicioHoje = new Date(hoje.setHours(0,0,0,0)).getTime()
+    const agora = Date.now()
 
-  const inicioSemana = Date.now() - (7 * 86400000)
-  const inicioMes = Date.now() - (30 * 86400000)
+    const inicioHoje = new Date().setHours(0,0,0,0)
+    const inicioSemana = agora - (7 * 86400000)
+    const inicioMes = agora - (30 * 86400000)
 
-  // 🔥 FUNÇÃO FILTRO
-  const filtrar = (lista, campoData, inicio) => {
-    return lista.filter(item => item[campoData] >= inicio)
-  }
-
-  const pedidosHoje = filtrar(pedidos.rows, "criado_em", inicioHoje)
-  const pedidosSemana = filtrar(pedidos.rows, "criado_em", inicioSemana)
-  const pedidosMes = filtrar(pedidos.rows, "criado_em", inicioMes)
-
-  const visitasHoje = filtrar(visitas.rows, "inicio", inicioHoje)
-  const visitasSemana = filtrar(visitas.rows, "inicio", inicioSemana)
-  const visitasMes = filtrar(visitas.rows, "inicio", inicioMes)
-
-  // 🔥 SOMAS
-  const soma = lista => lista.reduce((acc, v) => acc + Number(v.total || 0), 0)
-
-  const faturamentoHoje = soma(pedidosHoje)
-  const faturamentoSemana = soma(pedidosSemana)
-  const faturamentoMes = soma(pedidosMes)
-
-  // 🔥 CONVERSÃO
-  const conversaoHoje = visitasHoje.length > 0
-    ? ((pedidosHoje.length / visitasHoje.length) * 100).toFixed(1)
-    : 0
-
-  res.json({
-    hoje: {
-      faturamento: faturamentoHoje,
-      pedidos: pedidosHoje.length,
-      visitas: visitasHoje.length,
-      conversao: conversaoHoje
-    },
-    semana: {
-      faturamento: faturamentoSemana,
-      pedidos: pedidosSemana.length,
-      visitas: visitasSemana.length
-    },
-    mes: {
-      faturamento: faturamentoMes,
-      pedidos: pedidosMes.length,
-      visitas: visitasMes.length
+    const filtrar = (lista, campoData, inicio) => {
+      return lista.filter(item => {
+        const data = new Date(item[campoData]).getTime()
+        return data >= inicio
+      })
     }
-  })
+
+    const pedidosHoje = filtrar(pedidos.rows, "criado_em", inicioHoje)
+    const pedidosSemana = filtrar(pedidos.rows, "criado_em", inicioSemana)
+    const pedidosMes = filtrar(pedidos.rows, "criado_em", inicioMes)
+
+    const soma = lista => lista.reduce((acc, v) => acc + Number(v.total || 0), 0)
+
+    const faturamentoHoje = soma(pedidosHoje)
+    const faturamentoSemana = soma(pedidosSemana)
+    const faturamentoMes = soma(pedidosMes)
+
+    res.json({
+      hoje: {
+        faturamento: faturamentoHoje,
+        pedidos: pedidosHoje.length,
+        //visitas: 0,
+        visitas: Object.keys(visitas).length,
+        conversao: 0
+      },
+      semana: {
+        faturamento: faturamentoSemana,
+        pedidos: pedidosSemana.length,
+        //visitas: 0
+        visitas: Object.keys(visitas).length
+      },
+      mes: {
+        faturamento: faturamentoMes,
+        pedidos: pedidosMes.length,
+        //visitas: 0
+        visitas: Object.keys(visitas).length
+      }
+    })
+
+  } catch (err) {
+    console.error("ERRO NO DASHBOARD:", err)
+    res.status(500).json({ erro: "Erro no servidor" })
+  }
 })
 
 app.get("/visitas", (req, res) => {
