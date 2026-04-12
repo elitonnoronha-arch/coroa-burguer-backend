@@ -24,9 +24,6 @@ const io = new Server(server, {
 app.use(cors());
 app.use(express.json());
 
-mercadopago.configure({
-  access_token: "SEU_ACCESS_TOKEN"
-});
 
 
 const visitas = {}
@@ -713,11 +710,10 @@ app.get("/visitas", (req, res) => {
   res.json(visitantes);
 });
 
-const mercadopago = require("mercadopago");
+const { MercadoPagoConfig, Preference } = require("mercadopago");
 
-// 🔐 CONFIGURAÇÃO
-mercadopago.configure({
-  access_token: "SEU_ACCESS_TOKEN_AQUI"
+const client = new MercadoPagoConfig({
+  accessToken: "SEU_TOKEN"
 });
 
 // =============================
@@ -727,32 +723,30 @@ app.post("/criar-pagamento", async (req, res) => {
   try {
     const { itens, total, email } = req.body;
 
-    if (!itens || itens.length === 0) {
-      return res.status(400).json({ erro: "Itens não enviados" });
-    }
+    const preference = new Preference(client);
 
-    const preference = {
-      items: itens.map(item => ({
-        title: item.nome,
-        unit_price: Number(item.preco),
-        quantity: Number(item.quantidade),
-        currency_id: "BRL"
-      })),
-      payer: {
-        email: email || "teste@email.com"
-      },
-      back_urls: {
-        success: "http://localhost:5173/sucesso",
-        failure: "http://localhost:5173/erro",
-        pending: "http://localhost:5173/pendente"
-      },
-      auto_return: "approved"
-    };
-
-    const response = await mercadopago.preferences.create(preference);
+    const response = await preference.create({
+      body: {
+        items: itens.map(item => ({
+          title: item.nome,
+          unit_price: Number(item.preco),
+          quantity: Number(item.quantidade),
+          currency_id: "BRL"
+        })),
+        payer: {
+          email: email || "teste@email.com"
+        },
+        back_urls: {
+          success: "http://localhost:5173/sucesso",
+          failure: "http://localhost:5173/erro",
+          pending: "http://localhost:5173/pendente"
+        },
+        auto_return: "approved"
+      }
+    });
 
     res.json({
-      link: response.body.init_point
+      link: response.init_point
     });
 
   } catch (error) {
