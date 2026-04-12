@@ -714,7 +714,7 @@ app.post("/criar-pagamento", async (req, res) => {
       failure: "http://localhost:5173/erro",
       pending: "http://localhost:5173/pendente"
     },
-    auto_return: "approved"
+   
   }
 });
 
