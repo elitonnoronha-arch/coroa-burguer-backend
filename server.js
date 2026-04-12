@@ -698,25 +698,25 @@ app.post("/criar-pagamento", async (req, res) => {
 
     const preference = new Preference(client);
 
-    const response = await preference.create({
-      body: {
-        items: itens.map(item => ({
-          title: item.nome,
-          unit_price: Number(item.preco),
-          quantity: Number(item.quantidade),
-          currency_id: "BRL"
-        })),
-        payer: {
-          email: email || "teste@email.com"
-        },
-        back_urls: {
-          success: "http://localhost:5173/sucesso",
-          failure: "http://localhost:5173/erro",
-          pending: "http://localhost:5173/pendente"
-        },
-        auto_return: "approved"
-      }
-    });
+   const response = await preference.create({
+  body: {
+    items: itens.map(item => ({
+      title: item.nome,
+      unit_price: Number(item.preco),
+      quantity: Number(item.quantidade),
+      currency_id: "BRL"
+    })),
+    payer: {
+      email: email || "teste@email.com"
+    },
+    back_urls: {
+      success: "http://localhost:5173/sucesso",
+      failure: "http://localhost:5173/erro",
+      pending: "http://localhost:5173/pendente"
+    },
+    auto_return: "approved"
+  }
+});
 
     res.json({
       link: response.init_point
