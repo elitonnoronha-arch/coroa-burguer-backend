@@ -5,6 +5,7 @@ const path = require("path");
 const http = require("http");
 const { Server } = require("socket.io");
 const pool = require("./db");
+const mercadopago = require("mercadopago");
 
 const app = express();
 const server = http.createServer(app);
@@ -22,6 +23,10 @@ const io = new Server(server, {
 
 app.use(cors());
 app.use(express.json());
+
+mercadopago.configure({
+  access_token: "SEU_ACCESS_TOKEN"
+});
 
 
 const visitas = {}
@@ -446,6 +451,51 @@ app.put("/produtos/ordem", async (req, res) => {
 // =============================
 // PEDIDOS
 // =============================
+
+// =============================
+// PAGAMENTO
+// =============================
+app.post("/criar-pagamento", async (req, res) => {
+  try {
+    const { itens, total, email } = req.body;
+
+    const response = await mercadopago.preferences.create({
+      items: itens.map(item => ({
+        title: item.nome,
+        unit_price: Number(item.preco),
+        quantity: item.quantidade
+      })),
+      payer: { email },
+      payment_methods: {
+        installments: 12
+      },
+      back_urls: {
+        success: "http://localhost:5173/sucesso",
+        failure: "http://localhost:5173/erro"
+      },
+      notification_url: "http://SEU_BACKEND/webhook"
+    });
+
+    res.json({ link: response.body.init_point });
+
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ erro: "Erro ao criar pagamento" });
+  }
+});
+
+app.get("/teste", (req, res) => {
+  res.send("Servidor funcionando");
+});
+
+app.post("/webhook", (req, res) => {
+  console.log("Pagamento confirmado:", req.body);
+
+  // aqui depois você atualiza status do pedido
+
+  res.sendStatus(200);
+});
+
 app.get("/pedidos", async (req, res) => {
   try {
     const pedidos = await pool.query(`
@@ -661,6 +711,54 @@ app.post("/visita/fim", (req, res) => {
 // listar visitas
 app.get("/visitas", (req, res) => {
   res.json(visitantes);
+});
+
+const mercadopago = require("mercadopago");
+
+// 🔐 CONFIGURAÇÃO
+mercadopago.configure({
+  access_token: "SEU_ACCESS_TOKEN_AQUI"
+});
+
+// =============================
+// 💳 CRIAR PAGAMENTO
+// =============================
+app.post("/criar-pagamento", async (req, res) => {
+  try {
+    const { itens, total, email } = req.body;
+
+    if (!itens || itens.length === 0) {
+      return res.status(400).json({ erro: "Itens não enviados" });
+    }
+
+    const preference = {
+      items: itens.map(item => ({
+        title: item.nome,
+        unit_price: Number(item.preco),
+        quantity: Number(item.quantidade),
+        currency_id: "BRL"
+      })),
+      payer: {
+        email: email || "teste@email.com"
+      },
+      back_urls: {
+        success: "http://localhost:5173/sucesso",
+        failure: "http://localhost:5173/erro",
+        pending: "http://localhost:5173/pendente"
+      },
+      auto_return: "approved"
+    };
+
+    const response = await mercadopago.preferences.create(preference);
+
+    res.json({
+      link: response.body.init_point
+    });
+
+  } catch (error) {
+    console.error("ERRO PAGAMENTO:", error);
+    res.status(500).json({ erro: "Erro ao criar pagamento" });
+  }
 });
 
 server.listen(PORT, () => {
