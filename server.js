@@ -5,7 +5,7 @@ const path = require("path");
 const http = require("http");
 const { Server } = require("socket.io");
 const pool = require("./db");
-const mercadopago = require("mercadopago");
+
 
 const app = express();
 const server = http.createServer(app);
@@ -127,7 +127,7 @@ app.post("/upload", upload.single("imagem"), (req, res) => {
   }
 });
 
-app.post("/visita/inicio", (req, res) => {
+{/*app.post("/visita/inicio", (req, res) => {
   const id = Date.now().toString();
 
   visitantes[id] = {
@@ -136,7 +136,7 @@ app.post("/visita/inicio", (req, res) => {
   };
 
   res.json({ id });
-});
+}); */}
 
 
 
@@ -220,16 +220,16 @@ app.get("/visitas", (req, res) => {
 
 //CRIA ROTA: visitante entrou
 
-app.post("/visita/inicio", (req, res) => {
-  const id = Date.now().toString();
+{/* app.post("/visita/inicio", (req, res) => {
+  //const id = Date.now().toString();
 
-  visitantes[id] = {
-    inicio: new Date(),
-    ativo: true
-  };
+  //visitantes[id] = {
+    //inicio: new Date(),
+    //ativo: true
+  //};
 
-  res.json({ id });
-});
+  //res.json({ id });
+//}); */}
 
 //CRIA ROTA: visitante saiu
 
@@ -452,34 +452,7 @@ app.put("/produtos/ordem", async (req, res) => {
 // =============================
 // PAGAMENTO
 // =============================
-app.post("/criar-pagamento", async (req, res) => {
-  try {
-    const { itens, total, email } = req.body;
 
-    const response = await mercadopago.preferences.create({
-      items: itens.map(item => ({
-        title: item.nome,
-        unit_price: Number(item.preco),
-        quantity: item.quantidade
-      })),
-      payer: { email },
-      payment_methods: {
-        installments: 12
-      },
-      back_urls: {
-        success: "http://localhost:5173/sucesso",
-        failure: "http://localhost:5173/erro"
-      },
-      notification_url: "http://SEU_BACKEND/webhook"
-    });
-
-    res.json({ link: response.body.init_point });
-
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ erro: "Erro ao criar pagamento" });
-  }
-});
 
 app.get("/teste", (req, res) => {
   res.send("Servidor funcionando");
