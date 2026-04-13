@@ -458,12 +458,42 @@ app.get("/teste", (req, res) => {
   res.send("Servidor funcionando");
 });
 
-app.post("/webhook", (req, res) => {
-  console.log("Pagamento confirmado:", req.body);
+app.post("/webhook", async (req, res) => {
+  console.log("BODY:", req.body); // 👈 COLOCA AQUI
+  try {
+    const payment = req.body;
 
-  // aqui depois você atualiza status do pedido
+    if (payment.type === "payment") {
 
-  res.sendStatus(200);
+      const paymentId = payment.data.id;
+
+      const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
+        headers: {
+          Authorization: `Bearer SEU_TOKEN`
+        }
+      });
+
+      const data = await response.json();
+
+      if (data.status === "approved") {
+
+        const pedido_id = data.external_reference;
+
+        await pool.query(
+          "UPDATE pedidos SET status = 'PAGO' WHERE id = $1",
+          [pedido_id]
+        );
+
+        console.log("✅ Pedido pago:", pedido_id);
+      }
+    }
+
+    res.sendStatus(200);
+
+  } catch (error) {
+    console.error(error);
+    res.sendStatus(500);
+  }
 });
 
 app.get("/pedidos", async (req, res) => {
@@ -568,7 +598,10 @@ app.post("/pedidos", async (req, res) => {
 
     io.emit("novo-pedido", { pedido_id, total, cliente });
 
-    res.json({ sucesso: true });
+    res.json({ 
+  sucesso: true,
+  id: pedido_id // 🔥 ISSO AQUI
+});
   } catch (err) {
     console.error(err);
     res.status(500).json({ erro: "Erro ao salvar pedido" });
@@ -686,14 +719,16 @@ app.get("/visitas", (req, res) => {
 const { MercadoPagoConfig, Preference } = require("mercadopago");
 
 const client = new MercadoPagoConfig({
-  accessToken: "APP_USR-186698606132042-041218-313ee795409c61918f3835bd819377fe-3330256763"
+  accessToken: "TESTUSER5305336152521654857"
 });
 
 // =============================
 // 💳 CRIAR PAGAMENTO
 // =============================
 app.post("/criar-pagamento", async (req, res) => {
+  const { itens, total, email, pedido_id } = req.body;
   try {
+    
     const { itens, total, email } = req.body;
 
     const preference = new Preference(client);
@@ -709,6 +744,7 @@ app.post("/criar-pagamento", async (req, res) => {
     payer: {
       email: email || "teste@email.com"
     },
+    external_reference: String(pedido_id),
     back_urls: {
       success: "http://localhost:5173/sucesso",
       failure: "http://localhost:5173/erro",
