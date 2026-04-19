@@ -719,7 +719,7 @@ app.get("/visitas", (req, res) => {
 const { MercadoPagoConfig, Preference } = require("mercadopago");
 
 const client = new MercadoPagoConfig({
-  accessToken: "TESTUSER5305336152521654857"
+  accessToken: "APP_USR-186698606132042-041218-313ee795409c61918f3835bd819377fe-3330256763"
 });
 
 // =============================
