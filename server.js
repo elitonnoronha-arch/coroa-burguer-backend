@@ -126,15 +126,10 @@ const upload = multer({
 // Upload
 app.post("/upload", upload.single("imagem"), (req, res) => {
   try {
-    if (!req.file) {
-      return res.status(400).json({ erro: "Nenhuma imagem enviada" });
-    }
-
-    // 🔥 AGORA VEM DO CLOUDINARY
-    res.json({ imagem: req.file.path });
-
+    res.json({
+      imagem: req.file.path // 🔥 URL do Cloudinary
+    });
   } catch (err) {
-    console.error(err);
     res.status(500).json({ erro: "Erro no upload" });
   }
 });
