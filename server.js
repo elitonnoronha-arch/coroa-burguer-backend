@@ -2,8 +2,8 @@ const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
-const { v2: cloudinary } = require("cloudinary");
 const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const cloudinary = require("cloudinary").v2;
 const http = require("http");
 const { Server } = require("socket.io");
 const pool = require("./db");
@@ -102,7 +102,7 @@ setInterval(() => {
 // =============================
 // UPLOADS
 // =============================
-app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+
 
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
