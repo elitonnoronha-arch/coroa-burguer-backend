@@ -2,12 +2,21 @@ const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
+const { v2: cloudinary } = require("cloudinary");
+const { CloudinaryStorage } = require("multer-storage-cloudinary");
 const http = require("http");
 const { Server } = require("socket.io");
 const pool = require("./db");
 
 
 const app = express();
+
+cloudinary.config({
+  cloud_name: "Root",
+  api_key: "735264756822466",
+  api_secret: "PVTbYfTNQWQ3MjbPiyJ62Ls3fso"
+});
+
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -95,12 +104,13 @@ setInterval(() => {
 // =============================
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, "uploads/"),
-  filename: (req, file, cb) =>
-    cb(null, Date.now() + path.extname(file.originalname))
+const storage = new CloudinaryStorage({
+  cloudinary: cloudinary,
+  params: {
+    folder: "coroa-burger",
+    allowed_formats: ["jpg", "png", "jpeg"]
+  }
 });
-
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
@@ -116,11 +126,13 @@ const upload = multer({
 // Upload
 app.post("/upload", upload.single("imagem"), (req, res) => {
   try {
-    if (!req.file)
+    if (!req.file) {
       return res.status(400).json({ erro: "Nenhuma imagem enviada" });
+    }
 
-    const url = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
-    res.json({ imagem: url });
+    // 🔥 AGORA VEM DO CLOUDINARY
+    res.json({ imagem: req.file.path });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ erro: "Erro no upload" });
