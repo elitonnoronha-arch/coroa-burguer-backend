@@ -1,24 +1,15 @@
+require("dotenv").config();
+
 const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
-const path = require("path");
-const CloudinaryStorage = require("multer-storage-cloudinary").CloudinaryStorage;
-const cloudinary = require("cloudinary").v2;
+const { Readable } = require("stream");
 const http = require("http");
 const { Server } = require("socket.io");
+const cloudinary = require("cloudinary").v2;
 const pool = require("./db");
 
-
 const app = express();
-
-require("dotenv").config();
-
-cloudinary.config({
-  cloud_name: process.env.CLOUD_NAME,
-  api_key: process.env.API_KEY,
-  api_secret: process.env.API_SECRET
-});
-
 const server = http.createServer(app);
 
 const io = new Server(server, {
@@ -26,93 +17,25 @@ const io = new Server(server, {
 });
 
 // =============================
-// CONTROLE DE VISITAS
+// CONFIG CLOUDINARY (.env)
 // =============================
+cloudinary.config({
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.API_KEY,
+  api_secret: process.env.API_SECRET
+});
 
-
-/*let visitantes = {}; */ 
-
+// =============================
+// MIDDLEWARE
+// =============================
 app.use(cors());
 app.use(express.json());
 
-
-
-const visitas = {}
-
-app.post("/visitas/ping", (req, res) => {
-  const id = req.ip || Math.random().toString()
-
-  if (!visitas[id]) {
-    visitas[id] = {
-      inicio: Date.now(),
-      tempo: 0,
-      ativo: true
-    }
-  }
-
-  visitas[id].ultimoPing = Date.now()
-  visitas[id].ativo = true
-
-  res.sendStatus(200)
-})
-
-setInterval(() => {
-  const agora = Date.now()
-
-  Object.values(visitas).forEach((v) => {
-
-    // 🔴 se passou muito tempo sem ping → offline
-    if (agora - v.ultimoPing > 10000) {
-      v.ativo = false
-    }
-
-    // ✅ só conta tempo se estiver online
-    if (v.ativo) {
-      v.tempo += 1
-    }
-
-  })
-}, 1000)
-
-const historico = {}
-
-setInterval(() => {
-
-  const hoje = new Date().toISOString().slice(0, 10)
-
-  if (!historico[hoje]) {
-    historico[hoje] = {
-      visitantes: 0,
-      tempoTotal: 0
-    }
-  }
-
-  const visitasHoje = Object.values(visitas)
-
-  // 👥 total visitantes
-  historico[hoje].visitantes = visitasHoje.length
-
-  // ⏱ soma tempo de todos
-  historico[hoje].tempoTotal = visitasHoje.reduce((acc, v) => {
-    return acc + (v.tempo || 0)
-  }, 0)
-
-}, 60000) // a cada 1 minuto
-
-
-
 // =============================
-// UPLOADS
+// UPLOAD (SEM BUG)
 // =============================
+const storage = multer.memoryStorage();
 
-
-const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
-  params: {
-    folder: "coroa-burger",
-    allowed_formats: ["jpg", "png", "jpeg"]
-  }
-});
 const upload = multer({
   storage,
   fileFilter: (req, file, cb) => {
@@ -121,267 +44,47 @@ const upload = multer({
   }
 });
 
-// =============================
-// ROTAS
-// =============================
-
-// Upload
-app.post("/upload", upload.single("imagem"), (req, res) => {
+// Upload para Cloudinary
+app.post("/upload", upload.single("imagem"), async (req, res) => {
   try {
-    res.json({
-      imagem: req.file.path // 🔥 URL do Cloudinary
-    });
-  } catch (err) {
-    res.status(500).json({ erro: "Erro no upload" });
-  }
-});
+    const streamUpload = () => {
+      return new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: "coroa-burger" },
+          (error, result) => {
+            if (result) resolve(result);
+            else reject(error);
+          }
+        );
 
-{/*app.post("/visita/inicio", (req, res) => {
-  const id = Date.now().toString();
-
-  visitantes[id] = {
-    inicio: new Date(),
-    ativo: true
-  };
-
-  res.json({ id });
-}); */}
-
-
-
-app.get("/dashboard", async (req, res) => {
-  try {
-
-    const pedidos = await pool.query(`
-      SELECT total, criado_em
-      FROM pedidos
-    `)
-
-    // 🔥 SEM VISITAS (por enquanto)
-    const visitas = { rows: [] }
-
-    const agora = Date.now()
-
-    const inicioHoje = new Date().setHours(0,0,0,0)
-    const inicioSemana = agora - (7 * 86400000)
-    const inicioMes = agora - (30 * 86400000)
-
-    const filtrar = (lista, campoData, inicio) => {
-      return lista.filter(item => {
-        const data = new Date(item[campoData]).getTime()
-        return data >= inicio
-      })
-    }
-
-    const pedidosHoje = filtrar(pedidos.rows, "criado_em", inicioHoje)
-    const pedidosSemana = filtrar(pedidos.rows, "criado_em", inicioSemana)
-    const pedidosMes = filtrar(pedidos.rows, "criado_em", inicioMes)
-
-    const soma = lista => lista.reduce((acc, v) => acc + Number(v.total || 0), 0)
-
-    const faturamentoHoje = soma(pedidosHoje)
-    const faturamentoSemana = soma(pedidosSemana)
-    const faturamentoMes = soma(pedidosMes)
-
-    res.json({
-      hoje: {
-        faturamento: faturamentoHoje,
-        pedidos: pedidosHoje.length,
-        //visitas: 0,
-        visitas: Object.keys(visitas).length,
-        conversao: 0
-      },
-      semana: {
-        faturamento: faturamentoSemana,
-        pedidos: pedidosSemana.length,
-        //visitas: 0
-        visitas: Object.keys(visitas).length
-      },
-      mes: {
-        faturamento: faturamentoMes,
-        pedidos: pedidosMes.length,
-        //visitas: 0
-        visitas: Object.keys(visitas).length
-      }
-    })
-
-  } catch (err) {
-    console.error("ERRO NO DASHBOARD:", err)
-    res.status(500).json({ erro: "Erro no servidor" })
-  }
-})
-
-app.get("/visitas", (req, res) => {
-  const agora = Date.now();
-
-  const dados = Object.fromEntries(
-    Object.entries(visitas).map(([id, v]) => [
-      id,
-      {
-        ativo: v.ativo,
-        tempo: (agora - v.inicio) / 1000
-      }
-    ])
-  );
-
-  res.json(dados);
-});
-
-//CRIA ROTA: visitante entrou
-
-{/* app.post("/visita/inicio", (req, res) => {
-  //const id = Date.now().toString();
-
-  //visitantes[id] = {
-    //inicio: new Date(),
-    //ativo: true
-  //};
-
-  //res.json({ id });
-//}); */}
-
-//CRIA ROTA: visitante saiu
-
-app.post("/visita/fim", (req, res) => {
-  const { id } = req.body;
-
-  if (visitantes[id]) {
-    visitantes[id].fim = new Date();
-    visitantes[id].ativo = false;
-
-    const tempo =
-      (visitantes[id].fim - visitantes[id].inicio) / 1000;
-
-    visitantes[id].tempo = tempo;
-  }
-
-  res.json({ ok: true });
-});
-
-//ROTA PRA VER DADOS (ADMIN)
-
-app.get("/visitas", (req, res) => {
-  const agora = Date.now();
-
-  const visitasComTempo = {};
-
-  for (const id in visitas) {
-    const visita = visitas[id];
-
-    visitasComTempo[id] = {
-      ...visita,
-      tempo: (agora - visita.inicio) / 1000 // tempo em segundos
+        Readable.from(req.file.buffer).pipe(stream);
+      });
     };
-  }
 
-  res.json(visitasComTempo);
-});
+    const result = await streamUpload();
 
-app.get("/historico", (req, res) => {
-  res.json(historico)
-})
-
-
-// =============================
-// STATUS DA LOJA (SEGURO)
-// =============================
-app.get("/loja-status", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT loja_aberta FROM configuracoes LIMIT 1"
-    );
-
-    // Se não tiver nada no banco
-    if (result.rows.length === 0) {
-      return res.json({ loja_aberta: true });
-    }
-
-    res.json(result.rows[0]);
+    res.json({
+      imagem: result.secure_url
+    });
 
   } catch (err) {
-    console.error("Erro loja-status:", err);
-
-    // NÃO quebra o sistema
-    res.json({ loja_aberta: true });
-  }
-});
-
-app.post("/loja-status", async (req, res) => {
-  try {
-    const { aberto } = req.body;
-
-    await pool.query(
-      "UPDATE configuracoes SET loja_aberta = $1",
-      [aberto]
-    );
-
-    res.json({ ok: true });
-
-  } catch (err) {
-    console.error("Erro ao atualizar loja:", err);
-    res.status(500).json({ erro: "Erro ao atualizar status" });
-  }
-});
-
-// =============================
-// LOJA
-// =============================
-
-/* app.get("/loja-status", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT loja_aberta FROM configuracoes LIMIT 1"
-    );
-
-    res.json(result.rows[0] || { loja_aberta: false });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ erro: "Erro ao buscar status da loja" });
-  }
-}); */
-
-app.post("/loja-status", async (req, res) => {
-  try {
-    const { aberto } = req.body;
-
-    await pool.query(
-      "UPDATE configuracoes SET loja_aberta = $1",
-      [aberto]
-    );
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ erro: "Erro ao atualizar status" });
+    console.error("ERRO UPLOAD:", err);
+    res.status(500).json({ erro: "Erro no upload" });
   }
 });
 
 // =============================
 // PRODUTOS
 // =============================
-/* app.get("/produtos", async (req, res) => {
-  try {
-    const result = await pool.query(
-      "SELECT * FROM produtos ORDER BY ordem ASC NULLS LAST, id ASC"
-    );
-
-    res.json(result.rows);
-  } catch (err) {
-    console.error("Erro ao buscar produtos:", err);
-    res.status(500).json({ erro: "Erro ao buscar produtos" });
-  }
-}); */
-
 app.get("/produtos", async (req, res) => {
   try {
     const result = await pool.query(
       "SELECT * FROM produtos ORDER BY ordem ASC NULLS LAST, id ASC"
     );
-
-    res.json(result.rows || []);
+    res.json(result.rows);
   } catch (err) {
-    console.error("ERRO /produtos:", err);
-    res.status(500).json({ erro: err.message });
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao buscar produtos" });
   }
 });
 
@@ -398,166 +101,20 @@ app.post("/produtos", async (req, res) => {
 
     res.json(result.rows[0]);
   } catch (err) {
-    console.error(err);
     res.status(500).json({ erro: "Erro ao criar produto" });
-  }
-});
-
-app.put("/produtos/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { nome, preco, categoria, imagem, ingredientes } = req.body;
-
-    const result = await pool.query(
-      `UPDATE produtos 
-       SET nome=$1, preco=$2, categoria=$3, imagem=$4, ingredientes=$5 
-       WHERE id=$6 RETURNING *`,
-      [nome, preco, categoria, imagem, ingredientes, id]
-    );
-
-    res.json(result.rows[0]);
-  } catch (erro) {
-    console.error(erro);
-    res.status(500).json({ erro: "Erro ao atualizar produto" });
-  }
-});
-
-app.delete("/produtos/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await pool.query("DELETE FROM produtos WHERE id=$1", [id]);
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ erro: "Erro ao deletar produto" });
-  }
-});
-
-// ORDEM (DRAG)
-app.put("/produtos/ordem", async (req, res) => {
-  try {
-    const { lista } = req.body;
-
-    for (let i = 0; i < lista.length; i++) {
-      await pool.query(
-        "UPDATE produtos SET ordem = $1 WHERE id = $2",
-        [i, lista[i].id]
-      );
-    }
-
-    res.json({ ok: true });
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ erro: "Erro ao ordenar produtos" });
   }
 });
 
 // =============================
 // PEDIDOS
 // =============================
-
-// =============================
-// PAGAMENTO
-// =============================
-
-
-app.get("/teste", (req, res) => {
-  res.send("Servidor funcionando");
-});
-
-app.post("/webhook", async (req, res) => {
-  console.log("BODY:", req.body); // 👈 COLOCA AQUI
-  try {
-    const payment = req.body;
-
-    if (payment.type === "payment") {
-
-      const paymentId = payment.data.id;
-
-      const response = await fetch(`https://api.mercadopago.com/v1/payments/${paymentId}`, {
-        headers: {
-          Authorization: `Bearer SEU_TOKEN`
-        }
-      });
-
-      const data = await response.json();
-
-      if (data.status === "approved") {
-
-        const pedido_id = data.external_reference;
-
-        await pool.query(
-          "UPDATE pedidos SET status = 'PAGO' WHERE id = $1",
-          [pedido_id]
-        );
-
-        console.log("✅ Pedido pago:", pedido_id);
-      }
-    }
-
-    res.sendStatus(200);
-
-  } catch (error) {
-    console.error(error);
-    res.sendStatus(500);
-  }
-});
-
-app.get("/pedidos", async (req, res) => {
-  try {
-    const pedidos = await pool.query(`
-      SELECT p.*, c.nome, c.endereco, c.telefone, c.forma_pagamento
-      FROM pedidos p
-      LEFT JOIN clientes c ON c.id = p.cliente_id
-      ORDER BY p.id DESC
-    `);
-
-    const pedidosComItens = await Promise.all(
-      pedidos.rows.map(async (pedido) => {
-        const itens = await pool.query(
-          "SELECT * FROM itens_pedido WHERE pedido_id = $1",
-          [pedido.id]
-        );
-
-        pedido.itens = itens.rows.map((item) => ({
-          ...item,
-          ingredientes: (() => {
-            try {
-              if (!item.ingredientes) return [];
-
-              if (typeof item.ingredientes === "string") {
-                if (item.ingredientes.startsWith("["))
-                  return JSON.parse(item.ingredientes);
-
-                return item.ingredientes.split(",");
-              }
-
-              return item.ingredientes;
-            } catch {
-              return [];
-            }
-          })()
-        }));
-
-        return pedido;
-      })
-    );
-
-    res.json(pedidosComItens);
-  } catch (err) {
-    console.error(err);
-    res.status(500).json({ erro: "Erro ao buscar pedidos" });
-  }
-});
-
 app.post("/pedidos", async (req, res) => {
   try {
     const { total, itens, cliente } = req.body;
 
-    if (!itens || itens.length === 0)
+    if (!itens || itens.length === 0) {
       return res.status(400).json({ erro: "Itens não enviados" });
+    }
 
     let cliente_id = null;
 
@@ -567,10 +124,10 @@ app.post("/pedidos", async (req, res) => {
         (nome, endereco, telefone, forma_pagamento)
         VALUES ($1, $2, $3, $4) RETURNING id`,
         [
-          cliente.nome || "",
-          cliente.endereco || "",
-          cliente.telefone || "",
-          cliente.formaPagamento || ""
+          cliente.nome,
+          cliente.endereco,
+          cliente.telefone,
+          cliente.formaPagamento
         ]
       );
 
@@ -596,183 +153,80 @@ app.post("/pedidos", async (req, res) => {
           item.nome,
           item.quantidade,
           item.preco,
-          JSON.stringify(
-            item.ingredientesSelecionados ||
-              item.ingredientes ||
-              []
-          )
+          JSON.stringify(item.ingredientes || [])
         ]
       );
     }
 
-    io.emit("novo-pedido", { pedido_id, total, cliente });
+    io.emit("novo-pedido", { pedido_id });
 
-    res.json({ 
-  sucesso: true,
-  id: pedido_id // 🔥 ISSO AQUI
-});
+    res.json({ sucesso: true, id: pedido_id });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ erro: "Erro ao salvar pedido" });
   }
 });
 
-app.put("/pedidos/:id/status", async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { status } = req.body;
-
-    await pool.query(
-      "UPDATE pedidos SET status = $1 WHERE id = $2",
-      [status, id]
-    );
-
-    res.json({ sucesso: true });
-  } catch (erro) {
-    console.error(erro);
-    res.status(500).json({ erro: "Erro ao atualizar status" });
-  }
-});
-
-app.delete("/pedidos/:id", async (req, res) => {
-  try {
-    const { id } = req.params;
-
-    await pool.query(
-      "DELETE FROM itens_pedido WHERE pedido_id = $1",
-      [id]
-    );
-
-    await pool.query(
-      "DELETE FROM pedidos WHERE id = $1",
-      [id]
-    );
-
-    res.json({ sucesso: true });
-  } catch (erro) {
-    console.error(erro);
-    res.status(500).json({ erro: "Erro ao excluir pedido" });
-  }
-});
-
 // =============================
-// SOCKET
+// MERCADO PAGO
 // =============================
-io.on("connection", socket => {
-  console.log("🟢 Cliente conectado:", socket.id);
-
-  // Quando entra
-  visitas[socket.id] = {
-    inicio: Date.now(),
-    ativo: true
-  };
-
-  // Quando sai
-  socket.on("disconnect", () => {
-    if (visitas[socket.id]) {
-      visitas[socket.id].ativo = false;
-    }
-  });
-});
-
-
-
-
-// =============================
-// SERVER
-// =============================
-const PORT = process.env.PORT || 3001;
-
-// =============================
-// VISITANTES (ANALYTICS)
-// =============================
-
-let visitantes = {};
-
-// visitante entrou
-app.post("/visita/inicio", (req, res) => {
-  const id = Date.now().toString();
-
-  visitantes[id] = {
-    inicio: new Date(),
-    ativo: true
-  };
-
-  console.log("🟢 Visitante entrou:", id);
-
-  res.json({ id });
-});
-
-// visitante saiu
-app.post("/visita/fim", (req, res) => {
-  const { id } = req.body;
-
-  if (visitantes[id]) {
-    visitantes[id].fim = new Date();
-    visitantes[id].ativo = false;
-
-    const tempo = (visitantes[id].fim - visitantes[id].inicio) / 1000;
-    visitantes[id].tempo = tempo;
-
-    console.log("🔴 Visitante saiu:", id, "Tempo:", tempo);
-  }
-
-  res.json({ ok: true });
-});
-
-// listar visitas
-app.get("/visitas", (req, res) => {
-  res.json(visitantes);
-});
-
 const { MercadoPagoConfig, Preference } = require("mercadopago");
 
 const client = new MercadoPagoConfig({
-  accessToken: "APP_USR-186698606132042-041218-313ee795409c61918f3835bd819377fe-3330256763"
+  accessToken: process.env.MP_ACCESS_TOKEN
 });
 
-// =============================
-// 💳 CRIAR PAGAMENTO
-// =============================
 app.post("/criar-pagamento", async (req, res) => {
-  const { itens, total, email, pedido_id } = req.body;
   try {
-    
-    const { itens, total, email } = req.body;
+    const { itens, email, pedido_id } = req.body;
 
     const preference = new Preference(client);
 
-   const response = await preference.create({
-  body: {
-    items: itens.map(item => ({
-      title: item.nome,
-      unit_price: Number(item.preco),
-      quantity: Number(item.quantidade),
-      currency_id: "BRL"
-    })),
-    payer: {
-      email: email || "teste@email.com"
-    },
-    external_reference: String(pedido_id),
-    back_urls: {
-      success: "http://localhost:5173/sucesso",
-      failure: "http://localhost:5173/erro",
-      pending: "http://localhost:5173/pendente"
-    },
-   
-  }
-});
+    const response = await preference.create({
+      body: {
+        items: itens.map(item => ({
+          title: item.nome,
+          unit_price: Number(item.preco),
+          quantity: Number(item.quantidade),
+          currency_id: "BRL"
+        })),
+        payer: {
+          email: email || "teste@email.com"
+        },
+        external_reference: String(pedido_id)
+      }
+    });
 
     res.json({
       link: response.init_point
     });
 
   } catch (error) {
-    console.error("ERRO PAGAMENTO:", error);
-    res.status(500).json({ erro: "Erro ao criar pagamento" });
+    console.error(error);
+    res.status(500).json({ erro: "Erro pagamento" });
   }
 });
 
+// =============================
+// SOCKET.IO
+// =============================
+io.on("connection", socket => {
+  console.log("Cliente conectado:", socket.id);
+});
+
+// =============================
+// TESTE
+// =============================
+app.get("/", (req, res) => {
+  res.send("API rodando 🚀");
+});
+
+// =============================
+// START
+// =============================
+const PORT = process.env.PORT || 3001;
+
 server.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log("Servidor rodando na porta", PORT);
 });
