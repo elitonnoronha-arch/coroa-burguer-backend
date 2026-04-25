@@ -2,7 +2,7 @@ const express = require("express");
 const cors = require("cors");
 const multer = require("multer");
 const path = require("path");
-const { CloudinaryStorage } = require("multer-storage-cloudinary");
+const CloudinaryStorage = require("multer-storage-cloudinary").CloudinaryStorage;
 const cloudinary = require("cloudinary").v2;
 const http = require("http");
 const { Server } = require("socket.io");
@@ -11,10 +11,12 @@ const pool = require("./db");
 
 const app = express();
 
+require("dotenv").config();
+
 cloudinary.config({
-  cloud_name: "Root",
-  api_key: "735264756822466",
-  api_secret: "PVTbYfTNQWQ3MjbPiyJ62Ls3fso"
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.API_KEY,
+  api_secret: process.env.API_SECRET
 });
 
 const server = http.createServer(app);
