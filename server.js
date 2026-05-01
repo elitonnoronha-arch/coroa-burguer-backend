@@ -171,40 +171,38 @@ app.post("/pedidos", async (req, res) => {
 // =============================
 // MERCADO PAGO
 // =============================
-const { MercadoPagoConfig, Preference } = require("mercadopago");
+const mercadopago = require("mercadopago");
 
-const client = new MercadoPagoConfig({
-  accessToken: process.env.MP_ACCESS_TOKEN
+mercadopago.configure({
+  access_token: process.env.MP_ACCESS_TOKEN
 });
 
 app.post("/criar-pagamento", async (req, res) => {
   try {
     const { itens, email, pedido_id } = req.body;
 
-    const preference = new Preference(client);
+    const preference = {
+      items: itens.map(item => ({
+        title: item.nome,
+        unit_price: Number(item.preco),
+        quantity: Number(item.quantidade),
+        currency_id: "BRL"
+      })),
+      payer: {
+        email: email || "teste@email.com"
+      },
+      external_reference: String(pedido_id)
+    };
 
-    const response = await preference.create({
-      body: {
-        items: itens.map(item => ({
-          title: item.nome,
-          unit_price: Number(item.preco),
-          quantity: Number(item.quantidade),
-          currency_id: "BRL"
-        })),
-        payer: {
-          email: email || "teste@email.com"
-        },
-        external_reference: String(pedido_id)
-      }
-    });
+    const response = await mercadopago.preferences.create(preference);
 
     res.json({
-      link: response.init_point
+      link: response.body.init_point
     });
 
   } catch (error) {
-    console.error(error);
-    res.status(500).json({ erro: "Erro pagamento" });
+    console.error("ERRO PAGAMENTO:", error);
+    res.status(500).json({ erro: "Erro ao criar pagamento" });
   }
 });
 
