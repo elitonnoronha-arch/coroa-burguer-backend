@@ -88,6 +88,16 @@ app.get("/produtos", async (req, res) => {
   }
 });
 
+app.get("/pedidos", async (req, res) => {
+  try {
+    const pedidos = await pool.query("SELECT * FROM pedidos ORDER BY id DESC");
+    res.json(pedidos.rows);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ erro: "Erro ao buscar pedidos" });
+  }
+});
+
 app.post("/produtos", async (req, res) => {
   try {
     const { nome, preco, imagem, categoria, ingredientes } = req.body;
