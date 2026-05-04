@@ -181,13 +181,13 @@ app.post("/pedidos", async (req, res) => {
 // =============================
 // MERCADO PAGO
 // =============================
-const mercadopago = require("mercadopago");
+/*const mercadopago = require("mercadopago");
 
 mercadopago.configure({
   access_token: process.env.MP_ACCESS_TOKEN
-});
+});*/
 
-app.post("/criar-pagamento", async (req, res) => {
+/*app.post("/criar-pagamento", async (req, res) => {
   try {
     const { itens, email, pedido_id } = req.body;
 
@@ -214,7 +214,7 @@ app.post("/criar-pagamento", async (req, res) => {
     console.error("ERRO PAGAMENTO:", error);
     res.status(500).json({ erro: "Erro ao criar pagamento" });
   }
-});
+});*/
 
 // =============================
 // SOCKET.IO
